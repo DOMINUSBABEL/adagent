@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ModelType, Platform, GeneratedContent, AdObjective, ConsumerSentiment } from '../types';
-import { generateAdvancedAd, orchestrateParameters, fetchLiveSignalData } from '../services/geminiService';
+import { generateAdvancedAd, orchestrateParameters, fetchLiveSignalData, analyzeSocialContext } from '../services/geminiService';
 import { translations } from '../translations';
 
 const OBJECTIVES: AdObjective[] = ['Conversion', 'Awareness', 'Fear of Missing Out', 'Educational', 'Political Persuasion', 'Crisis Mgmt'];
@@ -12,7 +12,9 @@ const CampaignBuilder: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
   const [loading, setLoading] = useState(false);
   const [orchestrating, setOrchestrating] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [analyzingSocial, setAnalyzingSocial] = useState(false);
   const [masterBrief, setMasterBrief] = useState('');
+  const [socialUrl, setSocialUrl] = useState('');
   
   // States for Parameters
   const [platform, setPlatform] = useState<Platform>(Platform.META);
@@ -23,13 +25,27 @@ const CampaignBuilder: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
   const [results, setResults] = useState<GeneratedContent[]>([]);
   const [verifiedSources, setVerifiedSources] = useState<{title: string, uri: string}[]>([]);
 
+  const handleSocialAnalysis = async () => {
+    if (!socialUrl) return;
+    setAnalyzingSocial(true);
+    try {
+      const data = await analyzeSocialContext(socialUrl);
+      setSentiment(data.suggestedTone);
+      if (data.suggestedSegment) setSegment(data.suggestedSegment);
+      setMasterBrief(prev => prev + (prev ? "\n\n" : "") + "SOCIAL INTELLIGENCE (" + socialUrl + "):\n" + data.insights);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAnalyzingSocial(false);
+    }
+  };
+
   const handleScanLiveSignal = async () => {
     if (!signal) return;
     setScanning(true);
     try {
       const data = await fetchLiveSignalData(signal);
       setVerifiedSources(data.sources);
-      // Auto-update context with live info
       setMasterBrief(prev => prev + (prev ? "\n\n" : "") + "LIVE DATA GROUNDING: " + data.signal);
     } catch (e) {
       console.error(e);
@@ -79,6 +95,34 @@ const CampaignBuilder: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-full pb-10">
       <div className="xl:col-span-5 space-y-6">
+        
+        {/* Social Ingestion Layer */}
+        <div className="bg-slate-900 border border-purple-500/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(168,85,247,0.1)]">
+          <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+            <i className="fas fa-share-alt text-purple-400"></i>
+            {lang === 'es' ? 'Ingestión de Referencia Social' : 'Social Reference Ingestion'}
+          </h3>
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              className="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
+              placeholder="URL (X, LinkedIn, Post...)"
+              value={socialUrl}
+              onChange={(e) => setSocialUrl(e.target.value)}
+            />
+            <button 
+              onClick={handleSocialAnalysis}
+              disabled={analyzingSocial || !socialUrl}
+              className="px-4 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-xl hover:bg-purple-600/30 transition-all"
+            >
+              {analyzingSocial ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-bolt"></i>}
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-2 italic">
+            {lang === 'es' ? '* Analiza el tono y la audiencia del link para ajustar la campaña.' : '* Analyzes tone and audience from the link to adjust the campaign.'}
+          </p>
+        </div>
+
         {/* AI Briefing Area */}
         <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
           <h3 className="text-white font-bold mb-4 flex items-center gap-2">
@@ -86,8 +130,8 @@ const CampaignBuilder: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
             {lang === 'es' ? 'Brief Maestro de Campaña' : 'Master Campaign Brief'}
           </h3>
           <textarea 
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white text-sm h-24 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder={lang === 'es' ? "Describe tu campaña en lenguaje natural..." : "Describe your campaign in natural language..."}
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white text-sm h-32 focus:ring-1 focus:ring-blue-500 outline-none transition-all resize-none"
+            placeholder={lang === 'es' ? "Describe tu campaña o usa los analizadores de arriba..." : "Describe your campaign or use the analyzers above..."}
             value={masterBrief}
             onChange={(e) => setMasterBrief(e.target.value)}
           />
@@ -195,11 +239,14 @@ const CampaignBuilder: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
         {results.map(ad => (
           <div key={ad.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl animate-fade-in group">
             <div className="p-4 bg-slate-950 flex justify-between border-b border-slate-800">
-               <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded uppercase tracking-tighter">Target: {ad.strategy.segment}</span>
+               <div className="flex gap-2">
+                <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded uppercase tracking-tighter">Target: {ad.strategy.segment}</span>
+                <span className="text-[10px] font-black text-purple-400 bg-purple-500/10 px-2 py-1 rounded uppercase tracking-tighter">{ad.strategy.sentiment}</span>
+               </div>
                <span className="text-[10px] text-slate-500">{ad.timestamp.toLocaleTimeString()}</span>
             </div>
             <div className="p-6">
-              <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 mb-6 text-slate-200 text-sm leading-relaxed font-sans">
+              <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 mb-6 text-slate-200 text-sm leading-relaxed font-sans whitespace-pre-wrap">
                 {ad.content}
               </div>
               <div className="flex items-start gap-4 p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10">

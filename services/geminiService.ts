@@ -5,8 +5,51 @@ import { ModelType, Platform, AdStrategy, AdObjective, ConsumerSentiment } from 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
- * Fetches verifiable live data from Polymarket or OSINT sources using Google Search grounding.
+ * Analiza un link de red social para extraer estilo, audiencia y temas clave.
  */
+export const analyzeSocialContext = async (url: string): Promise<{
+  insights: string;
+  suggestedSegment: string;
+  suggestedTone: ConsumerSentiment;
+}> => {
+  const prompt = `
+    Analyze the following social media URL: "${url}".
+    Using your search tools, identify:
+    1. The core audience or community interacting with this content.
+    2. The prevailing sentiment and linguistic style (slang, formal, aggressive, etc.).
+    3. The top 3 recurring themes or pain points discussed.
+
+    Summarize this into a "Social Intelligence Report" and suggest a Targeting Segment and Consumer Sentiment.
+    Return the response in a structured format.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: ModelType.PRO,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const text = response.text || "";
+    // Inferir sentimiento basado en el texto analizado
+    let tone: ConsumerSentiment = 'Optimistic';
+    if (text.toLowerCase().includes('anxious') || text.toLowerCase().includes('preocupación')) tone = 'Anxious';
+    if (text.toLowerCase().includes('skeptical') || text.toLowerCase().includes('escéptico')) tone = 'Skeptical';
+    if (text.toLowerCase().includes('urgent') || text.toLowerCase().includes('urgente')) tone = 'Urgent';
+
+    return {
+      insights: text,
+      suggestedSegment: "Community of " + url.split('/')[2], // Fallback simple
+      suggestedTone: tone
+    };
+  } catch (error) {
+    console.error("Social Analysis Error:", error);
+    throw error;
+  }
+};
+
 export const fetchLiveSignalData = async (topic: string): Promise<{
   signal: string;
   sources: { title: string; uri: string }[];
@@ -29,8 +72,6 @@ export const fetchLiveSignalData = async (topic: string): Promise<{
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // We use responseMimeType to guide structured data but since we use tools, 
-        // we'll parse the text for the summary.
       },
     });
 
@@ -42,7 +83,6 @@ export const fetchLiveSignalData = async (topic: string): Promise<{
         uri: chunk.web?.uri || ''
       }));
 
-    // Simple parser for suggested params from text or secondary call
     const text = response.text || "";
     
     return {
