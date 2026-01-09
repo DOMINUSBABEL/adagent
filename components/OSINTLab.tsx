@@ -7,14 +7,22 @@ const OSINTLab: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
   const t = translations[lang];
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
 
   const handleDeepSearch = async () => {
     if (!query) return;
     setLoading(true);
+    setError(null);
+    setData(null);
     try {
       const result = await performDeepOSINT(query);
+      if (!result.sources.length && result.analysis.includes("unavailable")) {
+         throw new Error("Target node returned low-confidence data or restricted access.");
+      }
       setData(result);
+    } catch (err: any) {
+      setError(err.message || "Failed to synchronize with OSINT nodes. Please check connection or refine query.");
     } finally {
       setLoading(false);
     }
@@ -30,8 +38,8 @@ const OSINTLab: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 text-xs"></i>
             <input 
               type="text" 
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-xs text-slate-200 outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-700 font-mono"
-              placeholder="Inject topic for deep verification (e.g. 'Consumer behavior in LatAm crypto markets')..."
+              className={`w-full bg-slate-950 border rounded-xl py-3 pl-10 pr-4 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-700 font-mono ${error ? 'border-rose-500/50' : 'border-slate-800 focus:border-indigo-500/50'}`}
+              placeholder="Inject topic for deep verification..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleDeepSearch()}
@@ -51,18 +59,31 @@ const OSINTLab: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
       {/* Main OSINT Viewport */}
       <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 overflow-hidden">
         
-        {/* Intelligence Report - Center/Left Panel */}
-        <div className="flex-1 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col shadow-2xl overflow-hidden min-h-0">
+        {/* Intelligence Report */}
+        <div className="flex-1 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col shadow-2xl overflow-hidden min-h-0 relative">
           <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center shrink-0">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Synthetic Intelligence Report</h3>
-            {data && <span className="text-[9px] font-mono text-emerald-500 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              SIGNALS_VERIFIED
-            </span>}
+            {data && <span className="text-[9px] font-mono text-emerald-500 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>SIGNALS_VERIFIED</span>}
           </div>
           
           <div className="flex-1 overflow-y-auto p-6 lg:p-8 custom-scrollbar">
-            {!data && !loading && (
+            {error && (
+              <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mb-4 border border-rose-500/20">
+                  <i className="fas fa-exclamation-triangle text-xl"></i>
+                </div>
+                <h4 className="text-white font-bold mb-2">Extraction Failed</h4>
+                <p className="text-xs text-slate-400 mb-6 leading-relaxed">{error}</p>
+                <button 
+                  onClick={handleDeepSearch}
+                  className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                >
+                  Attempt Sync Retry
+                </button>
+              </div>
+            )}
+
+            {!data && !loading && !error && (
               <div className="h-full flex flex-col items-center justify-center opacity-10 select-none grayscale">
                 <i className="fas fa-project-diagram text-7xl mb-6"></i>
                 <p className="text-[10px] font-black uppercase tracking-[0.5em]">Awaiting Signal Input</p>
@@ -72,7 +93,6 @@ const OSINTLab: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
             {loading && (
               <div className="space-y-6 animate-pulse">
                 <div className="h-3 w-3/4 bg-slate-800 rounded"></div>
-                <div className="h-3 w-1/2 bg-slate-800 rounded"></div>
                 <div className="h-40 w-full bg-slate-800 rounded-2xl"></div>
                 <div className="grid grid-cols-3 gap-4 pt-4">
                    <div className="h-16 bg-slate-800 rounded-xl"></div>
@@ -87,14 +107,13 @@ const OSINTLab: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
                 <div className="prose prose-invert prose-sm max-w-none">
                   <div className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap text-sm">{data.analysis}</div>
                 </div>
-                
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {data.signals.map((s: any) => (
-                    <div key={s.label} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors group">
+                    <div key={s.label} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 hover:border-indigo-500/30 transition-all">
                       <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-widest">{s.label}</p>
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-black text-white uppercase">{s.value}</span>
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${s.trend === 'up' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${s.trend === 'up' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                           <i className={`fas fa-arrow-${s.trend} text-[10px]`}></i>
                         </div>
                       </div>
@@ -106,7 +125,7 @@ const OSINTLab: React.FC<{lang: 'es' | 'en'}> = ({ lang }) => {
           </div>
         </div>
 
-        {/* Sources Panel - Right Side */}
+        {/* Sources Panel */}
         <div className="w-full lg:w-[320px] flex flex-col bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden shrink-0 min-h-0">
           <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center shrink-0">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grounding Nodes</h3>

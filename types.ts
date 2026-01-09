@@ -15,6 +15,7 @@ export enum Platform {
   PROGRAMMATIC = 'Programmatic Display'
 }
 
+export type AdFormat = 'Static Image' | 'Video' | 'Carousel' | 'Story' | 'Native';
 export type AdObjective = 'Conversion' | 'Awareness' | 'Fear of Missing Out' | 'Educational' | 'Political Persuasion' | 'Crisis Mgmt';
 export type ConsumerSentiment = 'Anxious' | 'Optimistic' | 'Skeptical' | 'Apathetic' | 'Urgent';
 export type PsychographicProfile = 'Analytical' | 'Impulsive' | 'Status-Driven' | 'Community-Oriented' | 'Risk-Averse';
@@ -25,12 +26,13 @@ export interface AdStrategy {
   sentiment: ConsumerSentiment;
   segment: string;
   externalSignal: string; 
-  // Nuevos parámetros (250% de aumento analítico)
   psychographic: PsychographicProfile;
   culturalNuance: CulturalNuance;
-  volatilityIndex: number; // 0-100 (derivado de Polymarket/OSINT)
+  volatilityIndex: number;
   riskPropensity: 'Low' | 'Medium' | 'High';
   temporalUrgency: 'Immediate' | 'Strategic' | 'Evergreen';
+  platform: Platform;
+  format: AdFormat;
 }
 
 export interface GeneratedContent {
