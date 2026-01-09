@@ -1,0 +1,7 @@
+{
+  "name": "Gemini AdArchitect",
+  "description": "An intelligent, context-aware advertising agent platform powered by Gemini 3. Generates personalized campaigns based on real-time data, trends, and live interaction.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
